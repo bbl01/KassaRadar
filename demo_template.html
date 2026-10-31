@@ -1,0 +1,68 @@
+<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>КассаРадар — демо</title>
+<style>
+:root{--bg:#f4f7fb;--card:#fff;--ink:#0f1b2d;--mut:#5d6b82;--blue:#0a5cff;--cyan:#00aaff;--red:#e5384f;--green:#18a058;--line:#dfe6f0}
+@media(prefers-color-scheme:dark){:root{--bg:#0d1420;--card:#16202f;--ink:#eaf0fa;--mut:#93a2bb;--line:#26344a}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+.wrap{max-width:1040px;margin:0 auto;padding:20px 16px 40px}
+h1{font-size:26px;margin:0 0 4px}.sub{color:var(--mut);margin-bottom:16px}
+.tabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+.tab{border:1px solid var(--line);background:var(--card);color:var(--ink);padding:8px 12px;border-radius:10px;cursor:pointer;font:inherit}
+.tab.on{border-color:var(--blue);box-shadow:0 0 0 2px rgba(10,92,255,.18)}
+.tab small{display:block;color:var(--mut)}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-bottom:12px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px}
+.k{color:var(--mut);font-size:13px}.v{font-size:26px;font-weight:700;margin-top:2px}
+.alert{border-left:5px solid var(--red)}.ok{border-left:5px solid var(--green)}
+.offer{background:linear-gradient(135deg,#0a5cff,#00aaff);color:#fff;border:0}
+.offer .k{color:#d7e8ff}.btn{margin-top:10px;background:#fff;color:#0a5cff;border:0;border-radius:10px;padding:9px 14px;font-weight:600;cursor:pointer}
+svg{width:100%;height:auto;display:block}.note{color:var(--mut);font-size:12.5px;margin-top:14px}
+ul{margin:6px 0 0;padding-left:18px}
+</style></head><body><div class="wrap">
+<h1>КассаРадар</h1>
+<div class="sub">Прогноз кассовых разрывов ИП на 14 дней и готовое предложение банка · демо на синтетических данных</div>
+<div class="tabs" id="tabs"></div>
+<div id="view"></div>
+<div class="note" id="foot"></div>
+</div>
+<script>
+const D=__DATA__, M=__METRICS__;
+const fmt=n=>Math.round(n).toLocaleString('ru-RU').replace(/ /g,' ')+' ₽';
+const tabs=document.getElementById('tabs'),view=document.getElementById('view');
+D.forEach((c,i)=>{const b=document.createElement('button');b.className='tab';
+ b.innerHTML=c.name+'<small>риск разрыва: '+Math.round(c.p_gap*100)+'%</small>';b.onclick=()=>show(i);tabs.appendChild(b)});
+function chart(c){
+ const W=960,Hh=300,p={l:78,r:16,t:14,b:30};
+ const xs=c.hist.length+c.p50.length;
+ const all=[...c.hist,...c.p10,...c.p90,0];const lo=Math.min(...all),hi=Math.max(...all);
+ const X=i=>p.l+(W-p.l-p.r)*i/(xs-1),Y=v=>p.t+(Hh-p.t-p.b)*(1-(v-lo)/(hi-lo||1));
+ const n=c.hist.length;
+ const line=(arr,off)=>arr.map((v,i)=>(i?'L':'M')+X(i+off).toFixed(1)+' '+Y(v).toFixed(1)).join('');
+ const band='M'+c.p90.map((v,i)=>X(i+n)+' '+Y(v)).join('L')+'L'+[...c.p10].reverse().map((v,i)=>X(c.p10.length-1-i+n)+' '+Y(v)).join('L')+'Z';
+ let g='';for(let k=0;k<=4;k++){const v=lo+(hi-lo)*k/4;g+=`<line x1="${p.l}" x2="${W-p.r}" y1="${Y(v)}" y2="${Y(v)}" stroke="var(--line)"/><text x="${p.l-8}" y="${Y(v)+4}" text-anchor="end" font-size="11" fill="var(--mut)">${Math.round(v/1000).toLocaleString('ru-RU')} т.₽</text>`}
+ const labs=[...c.hist_dates,...c.fc_dates];let tx='';labs.forEach((d,i)=>{if(i%6===0)tx+=`<text x="${X(i)}" y="${Hh-8}" font-size="11" text-anchor="middle" fill="var(--mut)">${d}</text>`});
+ const zero=lo<0&&hi>0?`<line x1="${p.l}" x2="${W-p.r}" y1="${Y(0)}" y2="${Y(0)}" stroke="var(--red)" stroke-dasharray="5 4"/><text x="${W-p.r}" y="${Y(0)-5}" text-anchor="end" font-size="11" fill="var(--red)">ноль</text>`:'';
+ return `<svg viewBox="0 0 ${W} ${Hh}" role="img" aria-label="Прогноз остатка">${g}${zero}
+ <line x1="${X(n-1)}" x2="${X(n-1)}" y1="${p.t}" y2="${Hh-p.b}" stroke="var(--mut)" stroke-dasharray="2 3"/>
+ <path d="${band}" fill="#0a5cff" opacity=".16"/><path d="${line(c.hist,0)}" fill="none" stroke="var(--ink)" stroke-width="2"/>
+ <path d="${line(c.p50,n)}" fill="none" stroke="#0a5cff" stroke-width="2.4"/>${tx}</svg>`}
+function show(i){
+ [...tabs.children].forEach((b,j)=>b.classList.toggle('on',i===j));
+ const c=D[i],risk=c.p_gap>=0.5;
+ const drv=c.drivers.length?'<ul>'+c.drivers.map(d=>`<li>${d[0]} — регулярный платёж ≈ ${fmt(d[1])}</li>`).join('')+'</ul>':'<div class="k">Крупных регулярных платежей в горизонте нет</div>';
+ view.innerHTML=`<div class="grid">
+ <div class="card"><div class="k">Остаток сегодня</div><div class="v">${fmt(c.balance)}</div></div>
+ <div class="card ${risk?'alert':'ok'}"><div class="k">Вероятность разрыва за 14 дней</div><div class="v">${Math.round(c.p_gap*100)}%</div></div>
+ <div class="card"><div class="k">Ожидаемый день разрыва</div><div class="v">${c.first_gap?('через '+c.first_gap+' дн.'):'—'}</div></div>
+ <div class="card"><div class="k">Глубина (90% сценариев)</div><div class="v">${c.shortfall?fmt(c.shortfall):'—'}</div></div></div>
+ <div class="card"><div class="k">Остаток: факт 30 дней и прогноз 14 дней (линия — медиана, полоса — диапазон 10–90%)</div>${chart(c)}</div>
+ <div class="grid" style="margin-top:12px">
+ <div class="card"><div class="k">Что давит на счёт</div>${drv}</div>
+ ${c.offer?`<div class="card offer"><div class="k">Предложение в приложении ВТБ Бизнес</div>
+   <div class="v">Лимит ${fmt(c.offer.amount)}</div>
+   <div>на ${c.offer.days} дн. · ставка ${c.offer.rate_pct}% годовых · переплата ≈ ${fmt(c.offer.cost)}</div>
+   <button class="btn" onclick="this.textContent='Заявка предзаполнена (демо)'">Подключить в 1 клик</button></div>`
+  :`<div class="card ok"><div class="k">Рекомендация</div><div class="v" style="font-size:18px">Предложение не требуется</div><div class="k">Остаток покрывает прогнозируемые платежи.</div></div>`}</div>`}
+show(0);
+document.getElementById('foot').textContent='Демо построено на синтетических данных. Бэктест: recall '+Math.round(M.recall*100)+'% против '+Math.round(M.naive_recall*100)+'% у наивного метода, MAE остатка ниже на '+M.mae_gain_pct+'%, медианный упреждающий срок '+M.median_lead_days+' дн. Ставка в предложении условная (ключевая 14% + спред 8 п.п.).';
+</script></body></html>
